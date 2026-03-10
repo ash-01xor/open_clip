@@ -89,7 +89,12 @@ def train_one_epoch(model, data, loss, epoch, optimizer, scaler, scheduler, dist
         if not args.skip_scheduler:
             scheduler(step)
 
-        images, texts = batch
+        if args.distill:
+            images, texts, dist_images, dist_texts = batch
+            dist_images = dist_images.to(device=device, dtype=input_dtype, non_blocking=True)
+            dist_texts = dist_texts.to(device=device, non_blocking=True)
+        else:
+            images, texts = batch
         images = images.to(device=device, dtype=input_dtype, non_blocking=True)
         texts = texts.to(device=device, non_blocking=True)
 
@@ -102,7 +107,7 @@ def train_one_epoch(model, data, loss, epoch, optimizer, scaler, scheduler, dist
                 logit_scale = model_out["logit_scale"]
                 if args.distill:
                     with torch.no_grad():
-                        dist_model_out = dist_model(images, texts)
+                        dist_model_out = dist_model(dist_images, dist_texts)
                     model_out.update({f'dist_{k}': v for k, v in dist_model_out.items()})
                 losses = loss(**model_out, output_dict=True)
 
