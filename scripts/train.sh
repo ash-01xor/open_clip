@@ -31,7 +31,7 @@ conda activate openclip_venv
 
 cd "${BASE_DIR}/open_clip"
 
-torchrun \
+torchrun --nproc_per_node=2 \
     -m open_clip_train.main \
     --model                "${STUDENT}" \
     --distill-model        "${TEACHER}" \
