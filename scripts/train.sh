@@ -1,35 +1,58 @@
 #!/bin/bash
+#SBATCH --job-name=clipkd-debug
+#SBATCH --partition=gpu
+#SBATCH --account=lt200394
+#SBATCH --gres=gpu:1
+#SBATCH --cpus-per-task=8
+#SBATCH --time=01:00:00
+#SBATCH --output=logs/%x-%j.out
+#SBATCH --error=logs/%x-%j.err
+
+echo "Job started on $(hostname)"
+echo "Job ID: $SLURM_JOB_ID"
+echo "Time: $(date)"
+
+# -------------------------------
+# Experiment configuration
+# -------------------------------
 
 STUDENT="ViT-T-16"
-TEACHER="ViT-B-32"   
-TEACHER_PRETRAINED="openai"            
+TEACHER="ViT-B-32"
+TEACHER_PRETRAINED="openai"
 LOSS="clipkd"
 NAME="clipkd_${STUDENT}_from_${TEACHER}"
 
-# hyperparameters for Loss weights (CLIP-KD paper values)
 ALPHA_CKD=1.0
 ALPHA_ICL=1.0
 ALPHA_FD=2000.0
+
 LR=1e-3
 WD=0.1
 WARMUP=10000
 EPOCHS=1
-BATCH_SIZE=64                       
+BATCH_SIZE=64
 
-# Base project directory on cluster
 BASE_DIR="/project/lt200394-thllmV/mkd-exp"
-TRAIN_DATA="${BASE_DIR}/datasets/cc12m-wds/{0000..0010}.tar"
-TRAIN_NUM_SAMPLES=50000        
-IMAGENET_VAL="${BASE_DIR}/datasets/imagenet/val"
+
+# Debug dataset (10 shards)
+TRAIN_DATA="${BASE_DIR}/datasets/cc12m-wds/cc12m-train-{0000..0009}.tar"
+TRAIN_NUM_SAMPLES=50000
+
 LOG_DIR="${BASE_DIR}/open_clip/exp1"
 WANDB_PROJECT="multilingual-vl-kd-clipkd-exp1"
 
 export WANDB_MODE=offline
 
+# -------------------------------
+# Environment setup
+# -------------------------------
+
 ml Mamba/23.11.0-0
 conda activate openclip_venv
 
 cd "${BASE_DIR}/open_clip"
+
+echo "Starting training..."
 
 torchrun --nproc_per_node=1 \
     -m open_clip_train.main \
@@ -48,13 +71,11 @@ torchrun --nproc_per_node=1 \
     --lr                   ${LR} \
     --wd                   ${WD} \
     --warmup               ${WARMUP} \
-    --workers              16 \
+    --workers              8 \
     --local-loss \
     --gather-with-grad \
     --grad-checkpointing \
     --grad-clip-norm       10.0 \
-    --imagenet-val         "${IMAGENET_VAL}" \
-    --zeroshot-frequency   1 \
     --save-frequency       5 \
     --log-every-n-steps    100 \
     --seed                 42 \
@@ -62,3 +83,5 @@ torchrun --nproc_per_node=1 \
     --name                 "${NAME}" \
     --wandb-project-name   "${WANDB_PROJECT}" \
     --report-to            wandb
+
+echo "Training finished at $(date)"
