@@ -56,6 +56,7 @@ echo "Starting training..."
 
 torchrun --nproc_per_node=1 \
     -m open_clip_train.main \
+    -- \
     --model                "${STUDENT}" \
     --distill-model        "${TEACHER}" \
     --distill-pretrained   "${TEACHER_PRETRAINED}" \
