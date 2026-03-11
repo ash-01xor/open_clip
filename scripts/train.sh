@@ -52,6 +52,9 @@ conda activate openclip_venv
 
 cd "${BASE_DIR}/open_clip"
 
+MASTER_PORT=$(shuf -i 29500-29999 -n 1)
+echo "Using master port: ${MASTER_PORT}"
+
 echo "Starting training..."
 
 torchrun --nproc_per_node=1 \
