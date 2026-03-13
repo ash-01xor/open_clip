@@ -28,7 +28,7 @@ ALPHA_FD=2000.0
 
 LR=1e-3
 WD=0.1
-WARMUP=10000
+WARMUP=5000
 EPOCHS=1
 BATCH_SIZE=64
 
@@ -57,9 +57,7 @@ echo "Using master port: ${MASTER_PORT}"
 
 echo "Starting training..."
 
-torchrun --nproc_per_node=1 \
-    -m open_clip_train.main \
-    -- \
+torchrun --nproc_per_node=1 -m open_clip_train.main -- \
     --model                "${STUDENT}" \
     --distill-model        "${TEACHER}" \
     --distill-pretrained   "${TEACHER_PRETRAINED}" \
