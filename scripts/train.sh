@@ -2,9 +2,9 @@
 #SBATCH --job-name=clipkd-debug
 #SBATCH --partition=gpu
 #SBATCH --account=lt200394
-#SBATCH --gres=gpu:1
+#SBATCH --gres=gpu:2
 #SBATCH --cpus-per-task=8
-#SBATCH --time=01:00:00
+#SBATCH --time=03:00:00
 #SBATCH --output=logs/%x-%j.out
 #SBATCH --error=logs/%x-%j.err
 
@@ -30,7 +30,7 @@ LR=1e-3
 WD=0.1
 WARMUP=5000
 EPOCHS=1
-BATCH_SIZE=64
+BATCH_SIZE=256
 
 BASE_DIR="/project/lt200394-thllmV/mkd-exp"
 
@@ -52,12 +52,9 @@ conda activate openclip_venv
 
 cd "${BASE_DIR}/open_clip"
 
-MASTER_PORT=$(shuf -i 29500-29999 -n 1)
-echo "Using master port: ${MASTER_PORT}"
-
 echo "Starting training..."
 
-torchrun --nproc_per_node=1 -m open_clip_train.main -- \
+torchrun --nproc_per_node=2 -m open_clip_train.main -- \
     --model                "${STUDENT}" \
     --distill-model        "${TEACHER}" \
     --distill-pretrained   "${TEACHER_PRETRAINED}" \
@@ -73,12 +70,12 @@ torchrun --nproc_per_node=1 -m open_clip_train.main -- \
     --lr                   ${LR} \
     --wd                   ${WD} \
     --warmup               ${WARMUP} \
-    --workers              8 \
+    --workers              4 \
     --local-loss \
     --gather-with-grad \
     --grad-checkpointing \
     --grad-clip-norm       10.0 \
-    --save-frequency       5 \
+    --save-frequency       1 \
     --log-every-n-steps    100 \
     --seed                 42 \
     --logs                 "${LOG_DIR}" \
