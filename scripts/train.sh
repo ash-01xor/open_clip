@@ -58,7 +58,7 @@ cd "${BASE_DIR}/open_clip"
 
 echo "Starting training..."
 
-torchrun --nproc_per_node=2 -m open_clip_train.main -- \
+torchrun --nproc_per_node=2 -m open_clip_train.main \
     --model                "${STUDENT}" \
     --distill-model        "${TEACHER}" \
     --distill-pretrained   "${TEACHER_PRETRAINED}" \
@@ -76,7 +76,6 @@ torchrun --nproc_per_node=2 -m open_clip_train.main -- \
     --warmup               ${WARMUP} \
     --workers              4 \
     --imagenet-val         "${IMAGENET_VAL}" \
-    --local-loss \
     --gather-with-grad \
     --grad-checkpointing \
     --grad-clip-norm       10.0 \
