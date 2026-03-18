@@ -22,7 +22,7 @@ STUDENT="ViT-T-16"
 TEACHER="ViT-B-32"
 TEACHER_PRETRAINED="${BASE_DIR}/pretrained/vit_b_32_openai.safetensors"
 LOSS="clipkd"
-NAME="clipkd_${STUDENT}_from_${TEACHER}"
+NAME="clipkd_${STUDENT}_from_${TEACHER}_${SLURM_JOB_ID}"
 
 ALPHA_CKD=1.0
 ALPHA_ICL=1.0
@@ -38,7 +38,7 @@ BATCH_SIZE=256
 TRAIN_DATA="${BASE_DIR}/datasets/cc12m-wds/cc12m-train-{0000..0009}.tar"
 TRAIN_NUM_SAMPLES=50000
 
-LOG_DIR="${BASE_DIR}/open_clip/exp1"
+LOG_DIR="${BASE_DIR}/open_clip/experiments/$(date +%Y%m%d_%H%M%S)"
 WANDB_PROJECT="multilingual-vl-kd-clipkd-exp1"
 
 IMAGENET_VAL="${BASE_DIR}/datasets/imagenet/val"
