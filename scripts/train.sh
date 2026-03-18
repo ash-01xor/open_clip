@@ -9,16 +9,18 @@
 #SBATCH --error=logs/%x-%j.err
 
 echo "Job started on $(hostname)"
-echo "Job ID: $SLURM_JOB_ID"
+echo "Job ID: $SLURM_JOB_ID"    
 echo "Time: $(date)"
 
 # -------------------------------
 # Experiment configuration
 # -------------------------------
 
+BASE_DIR="/project/lt200394-thllmV/mkd-exp"
+
 STUDENT="ViT-T-16"
 TEACHER="ViT-B-32"
-TEACHER_PRETRAINED="openai"
+TEACHER_PRETRAINED="${BASE_DIR}/pretrained/vit_b_32_openai.safetensors"
 LOSS="clipkd"
 NAME="clipkd_${STUDENT}_from_${TEACHER}"
 
@@ -32,8 +34,6 @@ WARMUP=5000
 EPOCHS=1
 BATCH_SIZE=256
 
-BASE_DIR="/project/lt200394-thllmV/mkd-exp"
-
 # Debug dataset (10 shards)
 TRAIN_DATA="${BASE_DIR}/datasets/cc12m-wds/cc12m-train-{0000..0009}.tar"
 TRAIN_NUM_SAMPLES=50000
@@ -41,7 +41,11 @@ TRAIN_NUM_SAMPLES=50000
 LOG_DIR="${BASE_DIR}/open_clip/exp1"
 WANDB_PROJECT="multilingual-vl-kd-clipkd-exp1"
 
+IMAGENET_VAL="${BASE_DIR}/datasets/imagenet/val"
+
 export WANDB_MODE=offline
+export HF_HUB_OFFLINE=1
+export TRANSFORMERS_OFFLINE=1
 
 # -------------------------------
 # Environment setup
@@ -71,6 +75,7 @@ torchrun --nproc_per_node=2 -m open_clip_train.main -- \
     --wd                   ${WD} \
     --warmup               ${WARMUP} \
     --workers              4 \
+    --imagenet-val         "${IMAGENET_VAL}" \
     --local-loss \
     --gather-with-grad \
     --grad-checkpointing \
