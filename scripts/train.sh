@@ -58,7 +58,7 @@ cd "${BASE_DIR}/open_clip"
 
 echo "Starting training..."
 
-torchrun --nproc_per_node=2 -m open_clip_train.main \
+torchrun --nproc_per_node=2 -m open_clip_train.main -- \
     --model                "${STUDENT}" \
     --distill-model        "${TEACHER}" \
     --distill-pretrained   "${TEACHER_PRETRAINED}" \
