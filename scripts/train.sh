@@ -1,10 +1,10 @@
 #!/bin/bash
-#SBATCH --job-name=clipkd-debug
+#SBATCH --job-name=clipkd-cc12m-full
 #SBATCH --partition=gpu
 #SBATCH --account=lt200394
 #SBATCH --gres=gpu:2
 #SBATCH --cpus-per-task=8
-#SBATCH --time=03:00:00
+#SBATCH --time=2:30:00
 #SBATCH --output=logs/%x-%j.out
 #SBATCH --error=logs/%x-%j.err
 
@@ -30,13 +30,13 @@ ALPHA_FD=2000.0
 
 LR=1e-3
 WD=0.1
-WARMUP=5000
+WARMUP=300
 EPOCHS=1
-BATCH_SIZE=256
+BATCH_SIZE=1024
 
-# Debug dataset (10 shards)
-TRAIN_DATA="${BASE_DIR}/datasets/cc12m-wds/cc12m-train-{0000..0009}.tar"
-TRAIN_NUM_SAMPLES=50000
+# Full CC12M dataset (2176 shards)
+TRAIN_DATA="${BASE_DIR}/datasets/cc12m-wds/cc12m-train-{0000..2175}.tar"
+TRAIN_NUM_SAMPLES=10968539
 
 LOG_DIR="${BASE_DIR}/open_clip/experiments/$(date +%Y%m%d_%H%M%S)"
 WANDB_PROJECT="multilingual-vl-kd-clipkd-exp1"
