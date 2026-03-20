@@ -4,7 +4,7 @@
 #SBATCH --account=lt200394
 #SBATCH --gres=gpu:2
 #SBATCH --cpus-per-task=8
-#SBATCH --time=2:30:00
+#SBATCH --time=7:30:00
 #SBATCH --output=logs/%x-%j.out
 #SBATCH --error=logs/%x-%j.err
 
@@ -74,7 +74,7 @@ torchrun --nproc_per_node=2 -m open_clip_train.main -- \
     --lr                   ${LR} \
     --wd                   ${WD} \
     --warmup               ${WARMUP} \
-    --workers              4 \
+    --workers              8 \
     --imagenet-val         "${IMAGENET_VAL}" \
     --gather-with-grad \
     --grad-checkpointing \
@@ -82,6 +82,7 @@ torchrun --nproc_per_node=2 -m open_clip_train.main -- \
     --save-frequency       1 \
     --log-every-n-steps    100 \
     --seed                 42 \
+    --resume               latest \
     --logs                 "${LOG_DIR}" \
     --name                 "${NAME}" \
     --wandb-project-name   "${WANDB_PROJECT}" \
