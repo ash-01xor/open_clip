@@ -6,7 +6,7 @@
 #SBATCH --ntasks-per-node=4
 #SBATCH --gres=gpu:4
 #SBATCH --cpus-per-task=8
-#SBATCH --time=10:00:00
+#SBATCH --time=20:00:00
 #SBATCH --output=logs/%x-%j.out
 #SBATCH --error=logs/%x-%j.err
 
@@ -30,11 +30,11 @@ ALPHA_CKD=1.0
 ALPHA_ICL=1.0
 ALPHA_FD=2000.0
 
-LR=5e-3
+LR=2e-3
 WD=0.1
-WARMUP=500
+WARMUP=2000
 EPOCHS=32
-BATCH_SIZE=1024
+BATCH_SIZE=128 
 
 # Full CC12M dataset (2176 shards)
 TRAIN_DATA="${BASE_DIR}/datasets/cc12m-wds/cc12m-train-{0000..2175}.tar"
