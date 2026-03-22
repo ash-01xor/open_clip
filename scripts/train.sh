@@ -66,9 +66,11 @@ echo "Global batch size: $((BATCH_SIZE * SLURM_NNODES * 4))"
 # -------------------------------
 
 ml Mamba/23.11.0-0
+eval "$(conda shell.bash hook)"
 conda activate openclip_venv
 
 cd "${BASE_DIR}/open_clip"
+export PYTHONPATH="${BASE_DIR}/open_clip/src:${PYTHONPATH}"
 
 echo "Starting training..."
 
