@@ -16,7 +16,7 @@ TEACHER="ViT-L-14"
 TEACHER_PRETRAINED="openai"   # or /path/to/teacher_checkpoint.pt
 TRAIN_DATA="/path/to/train_data"
 TRAIN_NUM_SAMPLES=0           # set >0 for webdataset epoch sizing
-IMAGENET_VAL="/path/to/imagenet/val"  # optional
+IMAGENET_VAL=""  # optional: set to /path/to/imagenet/val
 
 # Distillation: default | clipkd
 DISTILL_LOSS="clipkd"
@@ -39,33 +39,43 @@ RUN_NAME="clipkd_${STUDENT}_from_${TEACHER}"
 LOG_DIR="./logs"
 WANDB_PROJECT="openclip"
 
-srun python -m open_clip_train.main \
-    --model "${STUDENT}" \
-    --distill-model "${TEACHER}" \
-    --distill-pretrained "${TEACHER_PRETRAINED}" \
-    --distill-loss "${DISTILL_LOSS}" \
-    --alpha-ckd-loss "${ALPHA_CKD}" \
-    --alpha-icl-loss "${ALPHA_ICL}" \
-    --alpha-fd-loss "${ALPHA_FD}" \
-    --train-data "${TRAIN_DATA}" \
-    --dataset-type webdataset \
-    --batch-size "${BATCH_SIZE}" \
-    --epochs "${EPOCHS}" \
-    --lr "${LR}" \
-    --wd "${WD}" \
-    --warmup "${WARMUP}" \
-    --workers "${WORKERS}" \
-    --precision "${PRECISION}" \
-    --seed "${SEED}" \
-    --logs "${LOG_DIR}" \
-    --name "${RUN_NAME}" \
-    --report-to wandb \
-    --wandb-project-name "${WANDB_PROJECT}" \
-    --save-frequency 1 \
-    --save-most-recent \
-    --log-every-n-steps 50 \
-    --gather-with-grad \
-    --grad-checkpointing \
-    --grad-clip-norm 10.0 \
-    $( [ "${TRAIN_NUM_SAMPLES}" -gt 0 ] && echo --train-num-samples "${TRAIN_NUM_SAMPLES}" ) \
-    $( [ -n "${IMAGENET_VAL}" ] && echo --imagenet-val "${IMAGENET_VAL}" )
+CMD=(
+    python -m open_clip_train.main
+    --model "${STUDENT}"
+    --distill-model "${TEACHER}"
+    --distill-pretrained "${TEACHER_PRETRAINED}"
+    --distill-loss "${DISTILL_LOSS}"
+    --alpha-ckd-loss "${ALPHA_CKD}"
+    --alpha-icl-loss "${ALPHA_ICL}"
+    --alpha-fd-loss "${ALPHA_FD}"
+    --train-data "${TRAIN_DATA}"
+    --dataset-type webdataset
+    --batch-size "${BATCH_SIZE}"
+    --epochs "${EPOCHS}"
+    --lr "${LR}"
+    --wd "${WD}"
+    --warmup "${WARMUP}"
+    --workers "${WORKERS}"
+    --precision "${PRECISION}"
+    --seed "${SEED}"
+    --logs "${LOG_DIR}"
+    --name "${RUN_NAME}"
+    --report-to wandb
+    --wandb-project-name "${WANDB_PROJECT}"
+    --save-frequency 1
+    --save-most-recent
+    --log-every-n-steps 50
+    --gather-with-grad
+    --grad-checkpointing
+    --grad-clip-norm 10.0
+)
+
+if [ "${TRAIN_NUM_SAMPLES}" -gt 0 ]; then
+    CMD+=(--train-num-samples "${TRAIN_NUM_SAMPLES}")
+fi
+
+if [ -n "${IMAGENET_VAL}" ]; then
+    CMD+=(--imagenet-val "${IMAGENET_VAL}")
+fi
+
+srun "${CMD[@]}"
