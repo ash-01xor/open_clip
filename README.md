@@ -483,6 +483,29 @@ python -m open_clip_train.main \
 You can distill from a pre-trained by using `--distill-model` and `--distill-pretrained` to specify the model you'd like to distill from.
 For instance, to distill from OpenAI ViT-L/14 use `--distill-model ViT-L-14 --distill-pretrained openai`.
 
+By default, distillation uses the standard CLIP distillation loss:
+
+```bash
+--distill-loss default
+```
+
+To enable ClipKD distillation:
+
+```bash
+--distill-loss clipkd \
+--alpha-ckd-loss 1.0 \
+--alpha-icl-loss 1.0 \
+--alpha-fd-loss 2000.0
+```
+
+ClipKD loss weights:
+- `--alpha-ckd-loss`: cross-modal KD (KL on logits)
+- `--alpha-icl-loss`: inter-modal contrastive alignment
+- `--alpha-fd-loss`: feature distillation alignment
+
+For distillation, teacher preprocessing/tokenization is handled automatically from `--distill-model`.
+For a generic SLURM launcher with user-editable placeholders, see `scripts/train.sh`.
+
 ### Gradient accumulation
 
 To simulate larger batches use `--accum-freq k`. If per gpu batch size, `--batch-size`, is `m`, then the effective batch size will be `k * m * num_gpus`.

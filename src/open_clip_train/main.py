@@ -28,7 +28,7 @@ try:
 except ImportError:
     hvd = None
 
-from open_clip import create_model_and_transforms, trace_model, get_tokenizer, create_loss
+from open_clip import create_model_and_transforms, trace_model, get_tokenizer, create_loss, get_model_config
 from open_clip_train.data import get_data
 from open_clip_train.distributed import is_master, init_distributed_device, broadcast_object
 from open_clip_train.logger import setup_logging
@@ -241,16 +241,35 @@ def main(args):
         cache_dir=args.cache_dir,
         **model_kwargs,
     )
+    dist_preprocess_train = None
+    dist_preprocess_val = None
+    dist_tokenizer = None
     if args.distill:
-        # FIXME: currently assumes the model you're distilling from has the same tokenizer & transforms.
-        dist_model, _, _ = create_model_and_transforms(
-            args.distill_model, 
+        # Capture teacher's preprocessing transforms instead of discarding them.
+        # The teacher may have a different image resolution or tokenizer from the student.
+        dist_model, dist_preprocess_train, dist_preprocess_val = create_model_and_transforms(
+            args.distill_model,
             args.distill_pretrained,
             device=device,
             precision=args.precision,
             output_dict=True,
             cache_dir=args.cache_dir,
         )
+        dist_tokenizer = get_tokenizer(args.distill_model, cache_dir=args.cache_dir)
+        # Freeze teacher: no gradient tracking, always in eval mode
+        dist_model.eval()
+        dist_model.requires_grad_(False)
+
+    # Extract student/teacher embed dims from model configs for ClipKD loss
+    if args.distill and getattr(args, 'distill_loss', None) == 'clipkd':
+        s_cfg = get_model_config(args.model)
+        t_cfg = get_model_config(args.distill_model)
+        assert s_cfg is not None, f"Could not find model config for student model: {args.model}"
+        assert t_cfg is not None, f"Could not find model config for teacher model: {args.distill_model}"
+        args.s_embed = s_cfg['embed_dim']
+        args.t_embed = t_cfg['embed_dim']
+        logging.info(f"ClipKD embed dims — student: {args.s_embed}, teacher: {args.t_embed}")
+
     if args.use_bnb_linear is not None:
         print('=> using a layer from bitsandbytes.\n'
               '   this is an experimental feature which requires two extra pip installs\n'
@@ -300,9 +319,8 @@ def main(args):
             # this doesn't exist in older PyTorch, arg only added if enabled
             ddp_args['static_graph'] = True
         model = torch.nn.parallel.DistributedDataParallel(model, device_ids=[device], **ddp_args)
-    
-        if args.distill:
-            dist_model = torch.nn.parallel.DistributedDataParallel(dist_model, device_ids=[device], **ddp_args)
+        # NOTE: teacher model is frozen (no gradients), so it must NOT be DDP-wrapped.
+        # DDP requires gradient synchronisation; wrapping a no-grad model will error.
 
     # create optimizer and scaler
     optimizer = None
@@ -395,11 +413,17 @@ def main(args):
 
     # initialize datasets
     tokenizer = get_tokenizer(args.model, cache_dir=args.cache_dir, context_length=args.force_context_length)
+    preprocess_fns = (
+        (preprocess_train, preprocess_val, dist_preprocess_train, dist_preprocess_val)
+        if args.distill else
+        (preprocess_train, preprocess_val)
+    )
     data = get_data(
         args,
-        (preprocess_train, preprocess_val),
+        preprocess_fns,
         epoch=start_epoch,
         tokenizer=tokenizer,
+        dist_tokenizer=dist_tokenizer,
     )
     assert len(data), 'At least one train or eval dataset must be specified.'
 
@@ -487,6 +511,16 @@ def main(args):
         return
 
     loss = create_loss(args)
+
+    # ClipKD has learnable parameters — move to device and add to optimizer
+    if getattr(args, 'distill_loss', None) == 'clipkd':
+        loss = loss.to(device)
+        if optimizer is not None:
+            loss_params = list(loss.parameters())
+            if loss_params:
+                optimizer.add_param_group({"params": loss_params, "weight_decay": 0., "lr": args.lr})
+                if is_master(args):
+                    logging.info(f'Added {len(loss_params)} ClipKD loss parameters to optimizer.')
 
     for epoch in range(start_epoch, args.epochs):
         if is_master(args):

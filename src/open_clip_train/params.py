@@ -462,6 +462,30 @@ def parse_args(args):
         help='Which pre-trained weights to distill from, if any.'
     )
     parser.add_argument(
+        "--distill-loss",
+        default="default",
+        choices=["default", "clipkd"],
+        help='Which distillation loss to use. "default" uses DistillClipLoss, "clipkd" uses ClipKDLoss.'
+    )
+    parser.add_argument(
+        "--alpha-ckd-loss",
+        type=float,
+        default=0.0,
+        help='Weight for cross-modal KD loss in ClipKD (default: 0.0).'
+    )
+    parser.add_argument(
+        "--alpha-icl-loss",
+        type=float,
+        default=0.0,
+        help='Weight for inter-modal contrastive loss in ClipKD (default: 0.0).'
+    )
+    parser.add_argument(
+        "--alpha-fd-loss",
+        type=float,
+        default=0.0,
+        help='Weight for feature distillation loss in ClipKD (default: 0.0).'
+    )
+    parser.add_argument(
         "--use-bnb-linear",
         default=None,
         help='Replace the network linear layers from the bitsandbytes library. '
