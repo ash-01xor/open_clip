@@ -11,9 +11,9 @@
 
 set -euo pipefail
 
-STUDENT="ViT-B-32"
-TEACHER="ViT-L-14"
-TEACHER_PRETRAINED="openai"   # or /path/to/teacher_checkpoint.pt
+STUDENT="ViT-T-16"
+TEACHER="ViT-B-16-SigLIP2"
+TEACHER_PRETRAINED="webli"    # SigLIP 2 pretrained on WebLI dataset
 TRAIN_DATA="/path/to/train_data"
 TRAIN_NUM_SAMPLES=0           # set >0 for webdataset epoch sizing
 IMAGENET_VAL=""  # optional: set to /path/to/imagenet/val

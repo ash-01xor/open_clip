@@ -7,8 +7,10 @@
         "patch_size": 16
     },
     "text_cfg": {
-        "context_length": 77,
-        "vocab_size": 49408,
+        "context_length": 64,
+        "vocab_size": 256000,
+        "hf_tokenizer_name": "google/siglip2-base-patch16-224",
+        "tokenizer_kwargs": {"clean": "canonicalize"},
         "width": 384,
         "heads": 6,
         "layers": 12
