@@ -1,81 +1,108 @@
-#!/usr/bin/env bash
-#SBATCH --job-name=openclip-train
+#!/bin/bash
+#SBATCH --job-name=mclipkd-cc12m-baseline
 #SBATCH --partition=gpu
-#SBATCH --nodes=1
-#SBATCH --ntasks-per-node=1
-#SBATCH --gres=gpu:1
+#SBATCH --account=lt200394
+#SBATCH --nodes=2
+#SBATCH --ntasks-per-node=4
+#SBATCH --gres=gpu:4
 #SBATCH --cpus-per-task=8
-#SBATCH --time=04:00:00
+#SBATCH --time=12:00:00
 #SBATCH --output=logs/%x-%j.out
 #SBATCH --error=logs/%x-%j.err
 
-set -euo pipefail
+echo "Job started on $(hostname)"
+echo "Job ID: $SLURM_JOB_ID"    
+echo "Time: $(date)"
+
+# -------------------------------
+# Experiment configuration
+# -------------------------------
+
+BASE_DIR="/project/lt200394-thllmV/multilingual-clip-kd"
 
 STUDENT="ViT-T-16"
 TEACHER="ViT-B-16-SigLIP2"
-TEACHER_PRETRAINED="webli"    # SigLIP 2 pretrained on WebLI dataset
-TRAIN_DATA="/path/to/train_data"
-TRAIN_NUM_SAMPLES=0           # set >0 for webdataset epoch sizing
-IMAGENET_VAL=""  # optional: set to /path/to/imagenet/val
+TEACHER_PRETRAINED="${BASE_DIR}/open_clip/pretrained/siglip2/open_clip_model.safetensors"
+LOSS="clipkd"
+NAME="clipkd_ViT-T-16_from_ViT-B-16-SigLIP2"
 
-# Distillation: default | clipkd
-DISTILL_LOSS="clipkd"
 ALPHA_CKD=1.0
 ALPHA_ICL=1.0
 ALPHA_FD=2000.0
 
-# Training
-BATCH_SIZE=128
-EPOCHS=32
-LR=1e-3
+LR=2e-3
 WD=0.1
-WARMUP=10000
-WORKERS=8
-PRECISION="amp"
-SEED=42
+WARMUP=2000
+EPOCHS=32
+BATCH_SIZE=128 
 
-# Logging
-RUN_NAME="clipkd_${STUDENT}_from_${TEACHER}"
-LOG_DIR="./logs"
-WANDB_PROJECT="openclip"
+# Full CC12M dataset (2176 shards)
+TRAIN_DATA="/project/lt200394-thllmV/mkd-exp/datasets/cc12m-wds/cc12m-train-{0000..2175}.tar"
+TRAIN_NUM_SAMPLES=10968539
 
-CMD=(
-    python -m open_clip_train.main
-    --model "${STUDENT}"
-    --distill-model "${TEACHER}"
-    --distill-pretrained "${TEACHER_PRETRAINED}"
-    --distill-loss "${DISTILL_LOSS}"
-    --alpha-ckd-loss "${ALPHA_CKD}"
-    --alpha-icl-loss "${ALPHA_ICL}"
-    --alpha-fd-loss "${ALPHA_FD}"
-    --train-data "${TRAIN_DATA}"
-    --dataset-type webdataset
-    --batch-size "${BATCH_SIZE}"
-    --epochs "${EPOCHS}"
-    --lr "${LR}"
-    --wd "${WD}"
-    --warmup "${WARMUP}"
-    --workers "${WORKERS}"
-    --precision "${PRECISION}"
-    --seed "${SEED}"
-    --logs "${LOG_DIR}"
-    --name "${RUN_NAME}"
-    --report-to wandb
-    --wandb-project-name "${WANDB_PROJECT}"
-    --save-frequency 1
-    --save-most-recent
-    --log-every-n-steps 50
-    --gather-with-grad
-    --grad-checkpointing
-    --grad-clip-norm 10.0
-)
+LOG_DIR="${BASE_DIR}/open_clip/experiments/siglip2_kd"
+WANDB_PROJECT="multilingual-vl-kd-siglip2"
 
-if [ "${TRAIN_NUM_SAMPLES}" -gt 0 ]; then
-    CMD+=(--train-num-samples "${TRAIN_NUM_SAMPLES}")
-fi
+IMAGENET_VAL="/project/lt200394-thllmV/mkd-exp/datasets/imagenet/val"
 
-if [ -n "${IMAGENET_VAL}" ]; then
-    CMD+=(--imagenet-val "${IMAGENET_VAL}")
-fi
+export WANDB_MODE=offline
+export HF_HUB_OFFLINE=1
+export TRANSFORMERS_OFFLINE=1
 
-srun "${CMD[@]}"
+# -------------------------------
+# Multi-node distributed setup
+# -------------------------------
+
+export MASTER_ADDR=$(scontrol show hostnames $SLURM_JOB_NODELIST | head -n 1)
+export MASTER_PORT=29500
+
+echo "Master: ${MASTER_ADDR}:${MASTER_PORT}"
+echo "Nodes: ${SLURM_NNODES}, GPUs per node: 4, Total GPUs: $((SLURM_NNODES * 4))"
+echo "Global batch size: $((BATCH_SIZE * SLURM_NNODES * 4))"
+
+
+# -------------------------------
+# Environment setup
+# -------------------------------
+
+ml Mamba/23.11.0-0
+eval "$(conda shell.bash hook)"
+conda activate habibienv
+
+cd "${BASE_DIR}/open_clip"
+export PYTHONPATH="${BASE_DIR}/open_clip/src:${PYTHONPATH}"
+
+echo "Starting training..."
+
+srun python -m open_clip_train.main \
+    --model                "${STUDENT}" \
+    --distill-model        "${TEACHER}" \
+    --distill-pretrained   "${TEACHER_PRETRAINED}" \
+    --distill-loss         "${LOSS}" \
+    --alpha-ckd-loss       ${ALPHA_CKD} \
+    --alpha-icl-loss       ${ALPHA_ICL} \
+    --alpha-fd-loss        ${ALPHA_FD} \
+    --train-data           "${TRAIN_DATA}" \
+    --train-num-samples    ${TRAIN_NUM_SAMPLES} \
+    --dataset-type         webdataset \
+    --batch-size           ${BATCH_SIZE} \
+    --epochs               ${EPOCHS} \
+    --lr                   ${LR} \
+    --wd                   ${WD} \
+    --warmup               ${WARMUP} \
+    --workers              8 \
+    --imagenet-val         "${IMAGENET_VAL}" \
+    --gather-with-grad \
+    --grad-checkpointing \
+    --grad-clip-norm       10.0 \
+    --save-frequency        8 \
+    --save-most-recent \
+    --log-every-n-steps    50 \
+    --seed                 42 \
+    --logs                 "${LOG_DIR}" \
+    --name                 "${NAME}" \
+    --wandb-project-name   "${WANDB_PROJECT}" \
+    --report-to            wandb \
+    --resume               latest
+
+echo "Training finished at $(date)"

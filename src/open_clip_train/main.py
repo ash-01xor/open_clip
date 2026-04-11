@@ -402,7 +402,10 @@ def main(args):
                 sd = {k[len('module.'):]: v for k, v in sd.items()}
             model.load_state_dict(sd)
             if optimizer is not None:
-                optimizer.load_state_dict(checkpoint["optimizer"])
+                try:
+                    optimizer.load_state_dict(checkpoint["optimizer"])
+                except (ValueError, KeyError) as e:
+                    logging.warning(f"Could not load optimizer state: {e}. Starting optimizer fresh.")
             if scaler is not None and 'scaler' in checkpoint:
                 scaler.load_state_dict(checkpoint['scaler'])
             logging.info(f"=> resuming checkpoint '{args.resume}' (epoch {start_epoch})")
