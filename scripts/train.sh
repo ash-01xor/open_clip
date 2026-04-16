@@ -6,7 +6,7 @@
 #SBATCH --ntasks-per-node=4
 #SBATCH --gres=gpu:4
 #SBATCH --cpus-per-task=8
-#SBATCH --time=12:00:00
+#SBATCH --time=16:00:00
 #SBATCH --output=logs/%x-%j.out
 #SBATCH --error=logs/%x-%j.err
 
@@ -24,7 +24,7 @@ STUDENT="ViT-T-16"
 TEACHER="ViT-B-16-SigLIP2"
 TEACHER_PRETRAINED="${BASE_DIR}/open_clip/pretrained/siglip2/open_clip_model.safetensors"
 LOSS="clipkd"
-NAME="clipkd_ViT-T-16_from_ViT-B-16-SigLIP2"
+NAME="clipkd_ViT-T-16_from_ViT-B-16-SigLIP2_v2"
 
 ALPHA_CKD=1.0
 ALPHA_ICL=1.0
@@ -104,5 +104,6 @@ srun python -m open_clip_train.main \
     --wandb-project-name   "${WANDB_PROJECT}" \
     --report-to            wandb \
     --resume               latest
+
 
 echo "Training finished at $(date)"
