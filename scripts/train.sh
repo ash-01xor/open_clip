@@ -17,6 +17,8 @@ TEACHER_PRETRAINED="openai"   # or /path/to/teacher_checkpoint.pt
 TRAIN_DATA="/path/to/train_data"
 TRAIN_NUM_SAMPLES=0           # set >0 for webdataset epoch sizing
 IMAGENET_VAL=""  # optional: set to /path/to/imagenet/val
+IMAGENET_A=""    # optional: set to /path/to/imagenet-a
+IMAGENET_R=""    # optional: set to /path/to/imagenet-r
 
 # Distillation: default | clipkd
 DISTILL_LOSS="clipkd"
@@ -76,6 +78,14 @@ fi
 
 if [ -n "${IMAGENET_VAL}" ]; then
     CMD+=(--imagenet-val "${IMAGENET_VAL}")
+fi
+
+if [ -n "${IMAGENET_A}" ]; then
+    CMD+=(--imagenet-a "${IMAGENET_A}")
+fi
+
+if [ -n "${IMAGENET_R}" ]; then
+    CMD+=(--imagenet-r "${IMAGENET_R}")
 fi
 
 srun "${CMD[@]}"
