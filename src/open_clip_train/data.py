@@ -148,19 +148,23 @@ def _imagenet_shift_target_transform(dataset, imagenet_class_to_idx):
 
 
 def get_imagenet(args, preprocess_fns, split, imagenet_class_to_idx=None):
-    assert split in ["train", "val", "v2", "a", "r"]
+    assert split in ["train", "val", "v2", "a", "r", "sketch"]
     is_train = split == "train"
     preprocess_train, preprocess_val = preprocess_fns
 
     if split == "v2":
         from imagenetv2_pytorch import ImageNetV2Dataset
         dataset = ImageNetV2Dataset(location=args.imagenet_v2, transform=preprocess_val)
-    elif split in ["a", "r"]:
-        data_path = args.imagenet_a if split == "a" else args.imagenet_r
+    elif split in ["a", "r", "sketch"]:
+        data_path = {
+            "a": args.imagenet_a,
+            "r": args.imagenet_r,
+            "sketch": args.imagenet_sketch,
+        }[split]
         assert data_path
         if imagenet_class_to_idx is None:
             raise ValueError(
-                "ImageNet-A/R zero-shot evaluation requires --imagenet-val so "
+                "ImageNet-A/R/Sketch zero-shot evaluation requires --imagenet-val so "
                 "variant WordNet folder names can be mapped to ImageNet-1K labels."
             )
 
@@ -652,5 +656,9 @@ def get_data(args, preprocess_fns, epoch=0, tokenizer=None, dist_tokenizer=None)
     if args.imagenet_r is not None:
         data["imagenet-r"] = get_imagenet(
             args, (preprocess_train, preprocess_val), "r", imagenet_class_to_idx=imagenet_class_to_idx)
+
+    if args.imagenet_sketch is not None:
+        data["imagenet-sketch"] = get_imagenet(
+            args, (preprocess_train, preprocess_val), "sketch", imagenet_class_to_idx=imagenet_class_to_idx)
 
     return data

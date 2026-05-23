@@ -13,6 +13,7 @@ IMAGENET_ZERO_SHOT_DATASETS = {
     'imagenet-v2': 'imagenetv2',
     'imagenet-a': 'imagenet-a',
     'imagenet-r': 'imagenet-r',
+    'imagenet-sketch': 'imagenet-sketch',
 }
 
 

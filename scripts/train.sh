@@ -19,6 +19,7 @@ TRAIN_NUM_SAMPLES=0           # set >0 for webdataset epoch sizing
 IMAGENET_VAL=""  # optional: set to /path/to/imagenet/val
 IMAGENET_A=""    # optional: set to /path/to/imagenet-a
 IMAGENET_R=""    # optional: set to /path/to/imagenet-r
+IMAGENET_SKETCH=""  # optional: set to /path/to/imagenet-sketch
 
 # Distillation: default | clipkd
 DISTILL_LOSS="clipkd"
@@ -86,6 +87,10 @@ fi
 
 if [ -n "${IMAGENET_R}" ]; then
     CMD+=(--imagenet-r "${IMAGENET_R}")
+fi
+
+if [ -n "${IMAGENET_SKETCH}" ]; then
+    CMD+=(--imagenet-sketch "${IMAGENET_SKETCH}")
 fi
 
 srun "${CMD[@]}"
