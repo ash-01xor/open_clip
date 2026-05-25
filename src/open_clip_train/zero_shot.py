@@ -107,14 +107,16 @@ def zero_shot_eval(model, data, epoch, args, tokenizer=None):
     logging.info('Using classifier')
     results = {}
     for data_key, metric_prefix in eval_datasets.items():
-        top1, top5 = run(model, classifier, data[data_key].dataloader, args)
+        restrict_to_dataset_classes = data_key in {'imagenet-a', 'imagenet-r'}
+        top1, top5 = run(
+            model,
+            classifier,
+            data[data_key].dataloader,
+            args,
+            restrict_to_dataset_classes=restrict_to_dataset_classes,
+        )
         results[f'{metric_prefix}-zeroshot-val-top1'] = top1
         results[f'{metric_prefix}-zeroshot-val-top5'] = top5
-        if data_key in {'imagenet-a', 'imagenet-r'}:
-            top1, top5 = run(
-                model, classifier, data[data_key].dataloader, args, restrict_to_dataset_classes=True)
-            results[f'{metric_prefix}-subset-zeroshot-val-top1'] = top1
-            results[f'{metric_prefix}-subset-zeroshot-val-top5'] = top5
 
     logging.info('Finished zero-shot imagenet.')
 
