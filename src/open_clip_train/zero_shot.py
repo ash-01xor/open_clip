@@ -23,22 +23,42 @@ def accuracy(output, target, topk=(1,)):
     return [float(correct[:k].reshape(-1).float().sum(0, keepdim=True).cpu().numpy()) for k in topk]
 
 
-def run(model, classifier, dataloader, args):
+def _get_subset_mapping(dataloader, device):
+    class_indices = getattr(dataloader.dataset, 'imagenet_class_indices', None)
+    if class_indices is None or len(class_indices) == len(IMAGENET_CLASSNAMES):
+        return None, None
+
+    subset_indices = torch.tensor(class_indices, device=device, dtype=torch.long)
+    target_mapping = torch.full((len(IMAGENET_CLASSNAMES),), -1, device=device, dtype=torch.long)
+    target_mapping[subset_indices] = torch.arange(len(subset_indices), device=device, dtype=torch.long)
+    return subset_indices, target_mapping
+
+
+def run(model, classifier, dataloader, args, restrict_to_dataset_classes=False):
     device = torch.device(args.device)
     autocast = get_autocast(args.precision, device_type=device.type)
     input_dtype = get_input_dtype(args.precision)
+    subset_indices, target_mapping = (
+        _get_subset_mapping(dataloader, device)
+        if restrict_to_dataset_classes else
+        (None, None)
+    )
 
     with torch.inference_mode():
         top1, top5, n = 0., 0., 0.
         for images, target in tqdm(dataloader, unit_scale=args.batch_size):
             images = images.to(device=device, dtype=input_dtype)
             target = target.to(device)
+            eval_classifier = classifier
 
             with autocast():
                 # predict
                 output = model(image=images)
                 image_features = output['image_features'] if isinstance(output, dict) else output[0]
-                logits = 100. * image_features @ classifier
+                if subset_indices is not None:
+                    eval_classifier = classifier[:, subset_indices]
+                    target = target_mapping[target]
+                logits = 100. * image_features @ eval_classifier
 
             # measure accuracy
             acc1, acc5 = accuracy(logits, target, topk=(1, 5))
@@ -90,6 +110,11 @@ def zero_shot_eval(model, data, epoch, args, tokenizer=None):
         top1, top5 = run(model, classifier, data[data_key].dataloader, args)
         results[f'{metric_prefix}-zeroshot-val-top1'] = top1
         results[f'{metric_prefix}-zeroshot-val-top5'] = top5
+        if data_key in {'imagenet-a', 'imagenet-r'}:
+            top1, top5 = run(
+                model, classifier, data[data_key].dataloader, args, restrict_to_dataset_classes=True)
+            results[f'{metric_prefix}-subset-zeroshot-val-top1'] = top1
+            results[f'{metric_prefix}-subset-zeroshot-val-top5'] = top5
 
     logging.info('Finished zero-shot imagenet.')
 

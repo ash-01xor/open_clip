@@ -144,6 +144,7 @@ def _imagenet_shift_target_transform(dataset, imagenet_class_to_idx):
         dataset.class_to_idx[class_name]: imagenet_class_to_idx[class_name]
         for class_name in dataset.classes
     }
+    dataset.imagenet_class_indices = sorted(target_map.values())
     return lambda target: target_map[target]
 
 
