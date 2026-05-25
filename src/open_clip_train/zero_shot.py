@@ -8,6 +8,15 @@ from open_clip import get_input_dtype, get_tokenizer, build_zero_shot_classifier
 from open_clip_train.precision import get_autocast
 
 
+IMAGENET_ZERO_SHOT_DATASETS = {
+    'imagenet-val': 'imagenet',
+    'imagenet-v2': 'imagenetv2',
+    'imagenet-a': 'imagenet-a',
+    'imagenet-r': 'imagenet-r',
+    'imagenet-sketch': 'imagenet-sketch',
+}
+
+
 def accuracy(output, target, topk=(1,)):
     pred = output.topk(max(topk), 1, True, True)[1].t()
     correct = pred.eq(target.view(1, -1).expand_as(pred))
@@ -43,7 +52,12 @@ def run(model, classifier, dataloader, args):
 
 
 def zero_shot_eval(model, data, epoch, args, tokenizer=None):
-    if 'imagenet-val' not in data and 'imagenet-v2' not in data:
+    eval_datasets = {
+        data_key: metric_prefix
+        for data_key, metric_prefix in IMAGENET_ZERO_SHOT_DATASETS.items()
+        if data_key in data
+    }
+    if not eval_datasets:
         return {}
     if args.zeroshot_frequency == 0:
         return {}
@@ -72,14 +86,10 @@ def zero_shot_eval(model, data, epoch, args, tokenizer=None):
 
     logging.info('Using classifier')
     results = {}
-    if 'imagenet-val' in data:
-        top1, top5 = run(model, classifier, data['imagenet-val'].dataloader, args)
-        results['imagenet-zeroshot-val-top1'] = top1
-        results['imagenet-zeroshot-val-top5'] = top5
-    if 'imagenet-v2' in data:
-        top1, top5 = run(model, classifier, data['imagenet-v2'].dataloader, args)
-        results['imagenetv2-zeroshot-val-top1'] = top1
-        results['imagenetv2-zeroshot-val-top5'] = top5
+    for data_key, metric_prefix in eval_datasets.items():
+        top1, top5 = run(model, classifier, data[data_key].dataloader, args)
+        results[f'{metric_prefix}-zeroshot-val-top1'] = top1
+        results[f'{metric_prefix}-zeroshot-val-top5'] = top5
 
     logging.info('Finished zero-shot imagenet.')
 

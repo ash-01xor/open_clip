@@ -132,14 +132,44 @@ def get_dataset_size(shards):
     return total_size, num_shards
 
 
-def get_imagenet(args, preprocess_fns, split):
-    assert split in ["train", "val", "v2"]
+def _imagenet_shift_target_transform(dataset, imagenet_class_to_idx):
+    missing_classes = sorted(set(dataset.classes) - set(imagenet_class_to_idx))
+    if missing_classes:
+        raise ValueError(
+            "ImageNet variant contains classes missing from the ImageNet validation "
+            f"class mapping: {missing_classes[:10]}"
+        )
+
+    target_map = {
+        dataset.class_to_idx[class_name]: imagenet_class_to_idx[class_name]
+        for class_name in dataset.classes
+    }
+    return lambda target: target_map[target]
+
+
+def get_imagenet(args, preprocess_fns, split, imagenet_class_to_idx=None):
+    assert split in ["train", "val", "v2", "a", "r", "sketch"]
     is_train = split == "train"
     preprocess_train, preprocess_val = preprocess_fns
 
     if split == "v2":
         from imagenetv2_pytorch import ImageNetV2Dataset
         dataset = ImageNetV2Dataset(location=args.imagenet_v2, transform=preprocess_val)
+    elif split in ["a", "r", "sketch"]:
+        data_path = {
+            "a": args.imagenet_a,
+            "r": args.imagenet_r,
+            "sketch": args.imagenet_sketch,
+        }[split]
+        assert data_path
+        if imagenet_class_to_idx is None:
+            raise ValueError(
+                "ImageNet-A/R/Sketch zero-shot evaluation requires --imagenet-val so "
+                "variant WordNet folder names can be mapped to ImageNet-1K labels."
+            )
+
+        dataset = datasets.ImageFolder(data_path, transform=preprocess_val)
+        dataset.target_transform = _imagenet_shift_target_transform(dataset, imagenet_class_to_idx)
     else:
         if is_train:
             data_path = args.imagenet_train
@@ -614,5 +644,21 @@ def get_data(args, preprocess_fns, epoch=0, tokenizer=None, dist_tokenizer=None)
 
     if args.imagenet_v2 is not None:
         data["imagenet-v2"] = get_imagenet(args, (preprocess_train, preprocess_val), "v2")
+
+    imagenet_class_to_idx = None
+    if "imagenet-val" in data:
+        imagenet_class_to_idx = data["imagenet-val"].dataloader.dataset.class_to_idx
+
+    if args.imagenet_a is not None:
+        data["imagenet-a"] = get_imagenet(
+            args, (preprocess_train, preprocess_val), "a", imagenet_class_to_idx=imagenet_class_to_idx)
+
+    if args.imagenet_r is not None:
+        data["imagenet-r"] = get_imagenet(
+            args, (preprocess_train, preprocess_val), "r", imagenet_class_to_idx=imagenet_class_to_idx)
+
+    if args.imagenet_sketch is not None:
+        data["imagenet-sketch"] = get_imagenet(
+            args, (preprocess_train, preprocess_val), "sketch", imagenet_class_to_idx=imagenet_class_to_idx)
 
     return data
