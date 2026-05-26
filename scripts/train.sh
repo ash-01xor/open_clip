@@ -20,6 +20,12 @@ IMAGENET_VAL=""  # optional: set to /path/to/imagenet/val
 IMAGENET_A=""    # optional: set to /path/to/imagenet-a
 IMAGENET_R=""    # optional: set to /path/to/imagenet-r
 IMAGENET_SKETCH=""  # optional: set to /path/to/imagenet-sketch
+FLICKR_VAL_IMAGES=""  # optional: set to /path/to/flickr30k/images
+FLICKR_VAL_ANNOTATIONS=""  # optional: set to Flickr30k Karpathy/COCO-style JSON, CSV, or TSV
+FLICKR_VAL_SPLIT="test"
+MSCOCO_VAL_IMAGES=""  # optional: set to /path/to/coco/val2014 or val2017
+MSCOCO_VAL_ANNOTATIONS=""  # optional: set to COCO captions/Karpathy JSON, CSV, or TSV
+MSCOCO_VAL_SPLIT=""
 
 # Distillation: default | clipkd
 DISTILL_LOSS="clipkd"
@@ -91,6 +97,24 @@ fi
 
 if [ -n "${IMAGENET_SKETCH}" ]; then
     CMD+=(--imagenet-sketch "${IMAGENET_SKETCH}")
+fi
+
+if [ -n "${FLICKR_VAL_IMAGES}" ] && [ -n "${FLICKR_VAL_ANNOTATIONS}" ]; then
+    CMD+=(
+        --flickr-val-images "${FLICKR_VAL_IMAGES}"
+        --flickr-val-annotations "${FLICKR_VAL_ANNOTATIONS}"
+        --flickr-val-split "${FLICKR_VAL_SPLIT}"
+    )
+fi
+
+if [ -n "${MSCOCO_VAL_IMAGES}" ] && [ -n "${MSCOCO_VAL_ANNOTATIONS}" ]; then
+    CMD+=(
+        --mscoco-val-images "${MSCOCO_VAL_IMAGES}"
+        --mscoco-val-annotations "${MSCOCO_VAL_ANNOTATIONS}"
+    )
+    if [ -n "${MSCOCO_VAL_SPLIT}" ]; then
+        CMD+=(--mscoco-val-split "${MSCOCO_VAL_SPLIT}")
+    fi
 fi
 
 srun "${CMD[@]}"
