@@ -16,6 +16,7 @@ except ImportError:
 
 from open_clip import get_input_dtype, CLIP, CustomTextCLIP
 from open_clip_train.distributed import is_master
+from open_clip_train.retrieval import retrieval_eval
 from open_clip_train.zero_shot import zero_shot_eval
 from open_clip_train.precision import get_autocast
 
@@ -262,6 +263,8 @@ def evaluate(model, data, epoch, args, tb_writer=None, tokenizer=None):
 
     zero_shot_metrics = zero_shot_eval(model, data, epoch, args, tokenizer=tokenizer)
     metrics.update(zero_shot_metrics)
+    retrieval_metrics = retrieval_eval(model, data, epoch, args)
+    metrics.update(retrieval_metrics)
 
     autocast = get_autocast(args.precision, device_type=device.type)
     input_dtype = get_input_dtype(args.precision)

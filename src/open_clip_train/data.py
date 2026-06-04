@@ -64,6 +64,138 @@ class CsvDataset(Dataset):
         return images, texts
 
 
+def _resolve_image_path(image_root, filename):
+    filename = str(filename)
+    if os.path.isabs(filename):
+        return filename
+    return os.path.join(image_root, filename)
+
+
+def _caption_text(sentence):
+    if isinstance(sentence, str):
+        return sentence
+    if isinstance(sentence, dict):
+        if "raw" in sentence:
+            return sentence["raw"]
+        if "caption" in sentence:
+            return sentence["caption"]
+        if "tokens" in sentence:
+            return " ".join(sentence["tokens"])
+    return str(sentence)
+
+
+def _load_retrieval_records(image_root, annotation_file, split=None):
+    ext = os.path.splitext(annotation_file)[1].lower()
+    records = []
+
+    if ext in {".csv", ".tsv"}:
+        sep = "\t" if ext == ".tsv" else ","
+        df = pd.read_csv(annotation_file, sep=sep)
+        if split and "split" in df.columns:
+            df = df[df["split"] == split]
+
+        image_col = next((c for c in ("filepath", "filename", "image", "image_path", "file_name") if c in df.columns), None)
+        caption_col = next((c for c in ("title", "caption", "text", "sentence") if c in df.columns), None)
+        image_id_col = next((c for c in ("image_id", "img_id", "filename", "filepath") if c in df.columns), image_col)
+        if image_col is None or caption_col is None:
+            raise ValueError(
+                f"Retrieval CSV/TSV must contain an image column and caption column. Found columns: {list(df.columns)}"
+            )
+
+        for row_idx, row in df.reset_index(drop=True).iterrows():
+            image_id = str(row[image_id_col])
+            records.append({
+                "image_path": _resolve_image_path(image_root, row[image_col]),
+                "caption": str(row[caption_col]),
+                "image_id": image_id,
+                "text_id": row_idx,
+            })
+        return records
+
+    with open(annotation_file, "r") as f:
+        annotations = json.load(f)
+
+    if isinstance(annotations, dict) and "images" in annotations and any("sentences" in img for img in annotations["images"]):
+        text_id = 0
+        for image in annotations["images"]:
+            image_split = image.get("split")
+            if split and image_split is not None and image_split != split:
+                continue
+            filename = image.get("filename") or image.get("file_name") or image.get("filepath")
+            if not filename:
+                raise ValueError("Karpathy-style retrieval annotation image is missing filename/file_name/filepath.")
+            image_id = str(image.get("imgid", image.get("id", filename)))
+            for sentence in image.get("sentences", []):
+                records.append({
+                    "image_path": _resolve_image_path(image_root, filename),
+                    "caption": _caption_text(sentence),
+                    "image_id": image_id,
+                    "text_id": text_id,
+                })
+                text_id += 1
+        return records
+
+    if isinstance(annotations, dict) and "images" in annotations and "annotations" in annotations:
+        images = {
+            image["id"]: image.get("file_name") or image.get("filename") or image.get("filepath")
+            for image in annotations["images"]
+        }
+        valid_image_ids = None
+        has_split_metadata = any("split" in image or "coco_split" in image for image in annotations["images"])
+        if split and has_split_metadata:
+            valid_image_ids = {
+                image["id"] for image in annotations["images"]
+                if image.get("split") == split or image.get("coco_split") == split
+            }
+
+        for text_id, caption in enumerate(annotations["annotations"]):
+            image_id = caption["image_id"]
+            if valid_image_ids is not None and image_id not in valid_image_ids:
+                continue
+            if image_id not in images:
+                raise ValueError(f"Caption references missing image_id {image_id}.")
+            records.append({
+                "image_path": _resolve_image_path(image_root, images[image_id]),
+                "caption": str(caption["caption"]),
+                "image_id": str(image_id),
+                "text_id": text_id,
+            })
+        return records
+
+    raise ValueError(
+        "Unsupported retrieval annotation format. Expected COCO captions JSON, Karpathy JSON, CSV, or TSV."
+    )
+
+
+class RetrievalDataset(Dataset):
+    def __init__(self, image_root, annotation_file, transform, tokenizer, split=None):
+        self.records = _load_retrieval_records(image_root, annotation_file, split=split)
+        if not self.records:
+            split_msg = f" for split {split}" if split else ""
+            raise ValueError(f"No retrieval records found in {annotation_file}{split_msg}.")
+        self.transform = transform
+        self.tokenize = tokenizer
+        self.image_ids = [record["image_id"] for record in self.records]
+        self.text_ids = [record["text_id"] for record in self.records]
+        self.text_to_image = {
+            record["text_id"]: record["image_id"]
+            for record in self.records
+        }
+        self.image_to_texts = {}
+        for record in self.records:
+            self.image_to_texts.setdefault(record["image_id"], []).append(record["text_id"])
+
+    def __len__(self):
+        return len(self.records)
+
+    def __getitem__(self, idx):
+        record = self.records[idx]
+        image = Image.open(record["image_path"]).convert("RGB")
+        image = self.transform(image)
+        text = self.tokenize([str(record["caption"])])[0]
+        return image, text, record["image_id"], record["text_id"]
+
+
 class SharedEpoch:
     def __init__(self, epoch: int = 0):
         self.shared_epoch = Value('i', epoch)
@@ -549,6 +681,27 @@ def get_csv_dataset(args, preprocess_fn, is_train, epoch=0, tokenizer=None,
     return DataInfo(dataloader, sampler)
 
 
+def get_retrieval_dataset(args, preprocess_fn, image_root, annotation_file, split=None, tokenizer=None):
+    dataset = RetrievalDataset(
+        image_root=image_root,
+        annotation_file=annotation_file,
+        transform=preprocess_fn,
+        tokenizer=tokenizer,
+        split=split,
+    )
+    dataloader = DataLoader(
+        dataset,
+        batch_size=args.batch_size,
+        shuffle=False,
+        num_workers=args.workers,
+        pin_memory=True,
+        drop_last=False,
+    )
+    dataloader.num_samples = len(dataset)
+    dataloader.num_batches = len(dataloader)
+    return DataInfo(dataloader)
+
+
 class SyntheticDataset(Dataset):
 
     def __init__(
@@ -661,5 +814,29 @@ def get_data(args, preprocess_fns, epoch=0, tokenizer=None, dist_tokenizer=None)
     if args.imagenet_sketch is not None:
         data["imagenet-sketch"] = get_imagenet(
             args, (preprocess_train, preprocess_val), "sketch", imagenet_class_to_idx=imagenet_class_to_idx)
+
+    if args.flickr_val_images is not None or args.flickr_val_annotations is not None:
+        if args.flickr_val_images is None or args.flickr_val_annotations is None:
+            raise ValueError("--flickr-val-images and --flickr-val-annotations must be specified together.")
+        data["flickr-val"] = get_retrieval_dataset(
+            args,
+            preprocess_val,
+            args.flickr_val_images,
+            args.flickr_val_annotations,
+            split=args.flickr_val_split,
+            tokenizer=tokenizer,
+        )
+
+    if args.mscoco_val_images is not None or args.mscoco_val_annotations is not None:
+        if args.mscoco_val_images is None or args.mscoco_val_annotations is None:
+            raise ValueError("--mscoco-val-images and --mscoco-val-annotations must be specified together.")
+        data["mscoco-val"] = get_retrieval_dataset(
+            args,
+            preprocess_val,
+            args.mscoco_val_images,
+            args.mscoco_val_annotations,
+            split=args.mscoco_val_split,
+            tokenizer=tokenizer,
+        )
 
     return data

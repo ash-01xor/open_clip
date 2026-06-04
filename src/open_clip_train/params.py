@@ -120,6 +120,42 @@ def parse_args(args):
         help="Path to imagenet-sketch for conducting zero shot evaluation.",
     )
     parser.add_argument(
+        "--flickr-val-images",
+        type=str,
+        default=None,
+        help="Path to Flickr30k eval images for retrieval evaluation.",
+    )
+    parser.add_argument(
+        "--flickr-val-annotations",
+        type=str,
+        default=None,
+        help="Path to Flickr30k eval annotations. Supports Karpathy JSON, COCO-style JSON, CSV, or TSV.",
+    )
+    parser.add_argument(
+        "--flickr-val-split",
+        type=str,
+        default="test",
+        help="Split to use when Flickr30k annotations contain split metadata.",
+    )
+    parser.add_argument(
+        "--mscoco-val-images",
+        type=str,
+        default=None,
+        help="Path to MSCOCO eval images for retrieval evaluation.",
+    )
+    parser.add_argument(
+        "--mscoco-val-annotations",
+        type=str,
+        default=None,
+        help="Path to MSCOCO eval annotations. Supports COCO captions JSON, Karpathy JSON, CSV, or TSV.",
+    )
+    parser.add_argument(
+        "--mscoco-val-split",
+        type=str,
+        default=None,
+        help="Optional split to use when MSCOCO annotations contain split metadata.",
+    )
+    parser.add_argument(
         "--cache-dir",
         type=str,
         default=None,
