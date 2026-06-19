@@ -392,6 +392,7 @@ def main(args):
 
     # optionally resume from a checkpoint
     start_epoch = 0
+    resumed_checkpoint = None
     if args.resume is not None:
         checkpoint = pt_load(args.resume, map_location='cpu')
         if 'epoch' in checkpoint:
@@ -401,8 +402,9 @@ def main(args):
             if not args.distributed and next(iter(sd.items()))[0].startswith('module'):
                 sd = {k[len('module.'):]: v for k, v in sd.items()}
             model.load_state_dict(sd)
-            if optimizer is not None:
-                optimizer.load_state_dict(checkpoint["optimizer"])
+            # Defer optimizer/loss state loading until after `loss` is created
+            # and its params are registered to the optimizer (see post-create_loss block below).
+            resumed_checkpoint = checkpoint
             if scaler is not None and 'scaler' in checkpoint:
                 scaler.load_state_dict(checkpoint['scaler'])
             logging.info(f"=> resuming checkpoint '{args.resume}' (epoch {start_epoch})")
@@ -522,6 +524,20 @@ def main(args):
                 if is_master(args):
                     logging.info(f'Added {len(loss_params)} ClipKD loss parameters to optimizer.')
 
+    # Now that loss params are registered to the optimizer, load resumed optimizer/loss state.
+    if resumed_checkpoint is not None:
+        if 'loss' in resumed_checkpoint and any(loss.parameters()):
+            try:
+                loss.load_state_dict(resumed_checkpoint['loss'])
+            except (ValueError, KeyError, RuntimeError) as e:
+                logging.warning(f"Could not load loss state: {e}. Starting loss params fresh.")
+        if optimizer is not None and 'optimizer' in resumed_checkpoint:
+            try:
+                optimizer.load_state_dict(resumed_checkpoint['optimizer'])
+            except (ValueError, KeyError) as e:
+                logging.warning(f"Could not load optimizer state: {e}. Starting optimizer fresh.")
+        resumed_checkpoint = None  # release memory
+
     for epoch in range(start_epoch, args.epochs):
         if is_master(args):
             logging.info(f'Start epoch {epoch}')
@@ -553,8 +569,11 @@ def main(args):
                 "epoch": completed_epoch,
                 "name": args.name,
                 "state_dict": original_model.state_dict(),
-                "optimizer": optimizer.state_dict(),
             }
+            if optimizer is not None:
+                checkpoint_dict["optimizer"] = optimizer.state_dict()
+            if loss is not None and any(loss.parameters()):
+                checkpoint_dict["loss"] = loss.state_dict()
             if scaler is not None:
                 checkpoint_dict["scaler"] = scaler.state_dict()
 

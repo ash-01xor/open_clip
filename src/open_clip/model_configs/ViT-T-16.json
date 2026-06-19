@@ -7,10 +7,14 @@
         "patch_size": 16
     },
     "text_cfg": {
-        "context_length": 77,
-        "vocab_size": 49408,
+        "context_length": 64,
+        "vocab_size": 256000,
+        "hf_tokenizer_name": "/project/lt200394-thllmV/multilingual-clip-kd/open_clip/pretrained/siglip2",
+        "tokenizer_kwargs": {"clean": "canonicalize"},
         "width": 384,
         "heads": 6,
-        "layers": 12
+        "layers": 12,
+        "no_causal_mask": true,
+        "pool_type": "last"
     }
 }
