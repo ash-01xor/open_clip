@@ -1,3 +1,4 @@
+import datetime
 import os
 import warnings
 from typing import Optional
@@ -154,6 +155,11 @@ def init_distributed_device_so(
 
         dist_url = dist_url or 'env://'
 
+        # NCCL's default collective timeout is 10 minutes, which is too tight for large
+        # multi-node runs where a single rank can transiently lag (e.g. during a periodic
+        # eval pass) without the run actually being hung. Override via DIST_TIMEOUT_SECONDS.
+        dist_timeout = datetime.timedelta(seconds=int(os.environ.get('DIST_TIMEOUT_SECONDS', 1800)))
+
         if 'SLURM_PROCID' in os.environ:
             # DDP via SLURM
             local_rank, global_rank, world_size = world_info_from_env()
@@ -166,6 +172,7 @@ def init_distributed_device_so(
                 init_method=dist_url,
                 world_size=world_size,
                 rank=global_rank,
+                timeout=dist_timeout,
             )
         else:
             # DDP via torchrun, torch.distributed.launch
@@ -173,6 +180,7 @@ def init_distributed_device_so(
             torch.distributed.init_process_group(
                 backend=dist_backend,
                 init_method=dist_url,
+                timeout=dist_timeout,
             )
             world_size = torch.distributed.get_world_size()
             global_rank = torch.distributed.get_rank()
